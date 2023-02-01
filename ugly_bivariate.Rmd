@@ -1,0 +1,353 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+---
+\ 
+
+```{r}
+rm(list=ls())
+setwd("C:\\Users\\bethb\\OneDrive\\Desktop\\GitHub DataViz\\deliv1")
+movieData<- Best_Movie_by_Year_Netflix
+movieData
+```
+
+
+
+```{r}
+str(movieData, width=50, strict.width='cut')
+```
+Cat-Cat relationships
+
+While we use frequency tables in the univariate case, for the bivariate case (cat-cat) we prepare contingency tables. Let’s select a couple of categorical variables:
+
+- Genre (genre of movies)
+- Production (where movies were produced)
+
+This contingency table shows counts for each combination of levels:
+
+```{r}
+(GenreProduction=table(movieData$MAIN_GENRE, movieData$MAIN_PRODUCTION))
+```
+When a table tries to hypothesize a relationship, you should have the independent variable in the columns, and the dependent one in the rows. Interpretation is difficult when you have counts so it is better to have percents. Percents should be computed by column to see how the levels of the dependent variable varies by each level of the independent one (reading along rows):
+
+```{r}
+# computing column percent from a contingency table
+library(magrittr)
+(GenProProp=prop.table(GenreProduction,
+                       margin = 2)
+  %>% round(.,3))
+```
+
+The previous table shows you how the genre of movie is affected by the country of production. You need a plot that allows to highlight those differences across countries. 
+As before, we turn it into a data frame
+
+```{r}
+# making a data frame from a contingency table
+(GenProDF = as.data.frame(GenreProduction))
+```
+
+We also have the table with marginal percents by column 
+
+```{r}
+as.data.frame(GenProProp)
+```
+
+We should simply add the last column to the data frame of counts 
+```{r}
+GenProDF$Share=as.data.frame(GenProProp)[,3]
+GenProDF
+```
+
+We can change the names of the previous data frame
+
+```{r}
+names(GenProDF)[1:3]=c("Genre","Country","Counts")
+#then
+GenProDF
+```
+
+use ggplot to represent the contingency table
+
+```{r}
+library(ggplot2)
+base1 = ggplot(data = GenProDF,
+               aes(x = Country,
+                   y = Share,
+                   fill = Genre))
+
+```
+
+Then play with some bar positions 
+
+```{r}
+barDodge = base1 + geom_bar(stat="identity",
+                            position='dodge')
+barDodge
+```
+
+second is a stack style 
+
+```{r}
+barStacked = base1 + geom_bar(stat="identity",
+                              position = 'stack') #default
+barStacked
+```
+
+stacked will work better whne there are more than two bars on a dodge plot 
+
+```{r}
+library(scales)
+#annotating
+barStackedAnn = barStacked + geom_text(size = 2, position = position_stack(vjust = 0.5), #center
+                                       aes(label = percent(share,accurary = 0.1))) #percent format
+barStackedAnn = barStackedAnn + scale_y_continuous(labels = percent)
+barStackedAnn
+```
+Since the precinct is nominal, and you see some marked differences along the percents, you can reorder the countries with reorder()
+
+```{r}
+base1 = ggplot(data = GenProDF,
+               aes(x = Country, y = share,
+                   fill = reorder(Genre,share))) # reordering
+
+barStacked = base1 + geom_bar(stat = "identity", position = 'stack')
+barStacked = barStacked + geom_text(size = 2,
+                                    position = position_stack(vjust=0.5), aes(label=percent(share,accuracy=0.1)))
+barStacked = barStacked + scale_y_continuous(labels = percent)
+barStacked
+```
+
+use a barplot with facets with bars dodged 
+
+```{r}
+# base with only X and Y in 'aes()'
+GenProDF = as.data.frame(GenreProduction)
+#marginal
+GenProProp = prop.table(GenreProduction,margin=2)
+#renaming
+names(GenProDF)=c("Genre","Country","Counts")
+# adding marginal
+GenProDF$Share=as.data.frame(GenProProp)[,3]
+# result for ggplot
+head(GenProDF,20)
+```
+Sometimes a simple contingency table does need t be plotted in order to reveal salient relationships: but in this case a vidsual may be needed 
+
+```{r}
+base2 = ggplot(data=GenProDF,
+               aes(x = Country,y = Share, fill = Genre))
+base2 = base2 + geom_bar(stat = "identity", position = 'fill') + geom_text(size = 2,
+                                                                           position = position_stack(vjust = 0.5),
+                                                                           aes(label=percent(Share,accuracy=0.1)))
+barStacked2 = base2 + scale_y_continuous(labels = percent)
+barStacked2
+```
+This plot will need a lot of work, so using it may not be a good strategy 
+
+First option you can use a barplot with facets 
+```{r}
+#base with only x and y in aes()
+barBar = ggplot(GenProDF, aes(x = Genre, y = Share))
+
+# the bars
+barPlot = barBar + geom_bar(stat = "identity")
+barPlot
+```
+
+now lets see the facets 
+
+```{r}
+# bar per country with 'facet'
+barsFt = barPlot + facet_grid(~ Country)
+
+barsFt
+```
+This does not look like the crosstable yet; let's solve that 
+
+```{r}
+barsFt + coord_flip()
+```
+Then we can reorder the bars: 
+
+```{r}
+# new base
+baseRE = ggplot(GenProDF,
+                aes(x = reorder(Genre, Share),
+                    y = Share)) + theme_minimal()
+
+barPlotRE = baseRE + geom_bar(stat = "identity")
+barFtRE = barPlotRE + facet_grid(~ Country)
+barFtRE = barFtRE + coord_flip()
+
+barFtRE
+
+```
+
+
+let's work on the Genre labels 
+
+```{r}
+barFtRE = barFtRE + theme(axis.text.y=element_text(size=7,angle=20))
+barFtRE
+```
+
+Would you annotate the bars:
+
+```{r}
+barREann=barFtRE + geom_text(aes(label=round(Share,2)),
+                             nudge_y=0.1)
+barREann
+```
+
+let's annotate conditionally instead
+
+```{r}
+barCond = barFtRE + geom_text(aes(label = ifelse(Share>0.05, #condition to annotate
+                                                 round(Share,2),"")),
+                              nudge_y = 0.1)
+barCond
+```
+
+What about percents instead
+
+```{r}
+barFtRE + geom_text(aes(label=ifelse(Share > 0.05,
+                                     percent(Share,accuracy=1), "")),
+                    nudge_y = 0.1,size=3) + scale_y_continuous(labels=percent_format(accuracy = 1,suffix=""))
+```
+
+Tabular data - Bivariate relationship 2: Categorical - Numerical 
+
+Let's keep using the same data on Genres. The next cases will show how a categorical variable can help us better understand the behavior of a numeric variable. 
+Let's take a look at a variable that informs the amount 
+
+```{r}
+# score report 
+# notice the spread of values 
+summary(movieData$SCORE)
+```
+Let me see the crimes that took the longest: 
+
+```{r}
+movieData[which.max(movieData$SCORE),]
+```
+
+Let's get the median for each Country 
+
+```{r}
+ScoreCountry=movieData[complete.cases(movieData),]
+aggregate(data = ScoreCountry, SCORE~MAIN_PRODUCTION,median)
+```
+
+Let's request a boxplot for each country
+
+```{r}
+# boxplot of score per country
+
+library(ggplot2)
+base=ggplot(data = ScoreCountry,
+            aes(x = MAIN_PRODUCTION, y=SCORE))
+
+base + geom_boxplot()
+```
+let's check out the statistics behind the median
+
+```{r}
+# using summary function 
+tapply(ScoreCountry$SCORE,
+       ScoreCountry$MAIN_PRODUCTION, summary)
+```
+If we consider the situation of score > 7 is expected behavior, let me keep the ones that are > 7 using ggarrange
+
+```{r}
+library(ggpubr)
+
+base7 = ggplot(data = ScoreCountry[ScoreCountry$SCORE >= 7,],
+               aes(x=MAIN_PRODUCTION, y=SCORE))
+box7 = base7 + geom_boxplot() + labs(title = "7 and above")
+
+base8 = ggplot(data = ScoreCountry[ScoreCountry$SCORE >= 8,],
+               aes(x = MAIN_PRODUCTION, y = SCORE))
+box8 = base8 + geom_boxplot() + labs(title = "8 and above")
+
+base9 = ggplot(data = ScoreCountry[ScoreCountry$SCORE >= 9,],
+               aes(x = MAIN_PRODUCTION, y = SCORE))
+box9 = base9 + geom_boxplot() + labs(title = "9 and above")
+
+# all in one
+ggarrange(box7, box8, box9, ncol=1)
+```
+
+Up to this point, you need to be planning a good story. The situation is different for each case, but let's build our visual from the crimes that take a year or longer to report
+
+```{r}
+ScoreAbove7 = ScoreCountry[ScoreCountry$SCORE >= 7,]
+```
+
+Let's see if flipping helps you see better
+
+```{r}
+titleText = "Countries Movie Scores Above 7.0"
+
+names(ScoreAbove7)=c("Index","Title","Release Year", "Score", "Genre", "Country")
+baseSA7 = ggplot(data = ScoreAbove7,
+                 aes(x = Country,
+                     y = Score))
+
+boxSA7 = baseSA7 + geom_boxplot() + labs(title = titleText)
+
+boxSA7 + coord_flip()
+```
+
+Let's reorder the category by median of the numeric variable 
+
+```{r}
+baseSA7 = ggplot(data = ScoreAbove7,
+                 aes(x = reorder(Country, Score, median),
+                     y = Score))
+boxSA7 = baseSA7 + geom_boxplot() + labs(title = titleText)
+
+# flipping
+boxSA7 + coord_flip()
+```
+What if we use the histogram: 
+
+```{r}
+baseHistSA7 = ggplot(data = ScoreAbove7,
+                     aes(x = Score))
+HistSA7 = baseHistSA7 + geom_histogram(aes(fill=Country),
+                                       color = 'black') # color the border
+HistSA7
+```
+
+You need facets: 
+
+```{r}
+HistSA7 + facet_grid(~Country)
+```
+The alternative without legend
+
+```{r}
+HistSA7 + facet_grid(Country~.) + guides(fill="none")
+```
+What about reordering 
+
+```{r}
+HistSA7 = HistSA7 + facet_grid(reorder(Country,
+                                       -Score,
+                                       median)~.) + guides(fill="none")
+HistSA7
+```
+
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
